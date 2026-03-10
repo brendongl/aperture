@@ -11,7 +11,7 @@ import { getMediaServerProvider } from '../media/index.js'
 import { getMediaServerApiKey } from '../settings/systemSettings.js'
 import { getTopPicksConfig } from './config.js'
 import type { PopularMovie, PopularSeries } from './popularity.js'
-import { queryOne } from '../lib/db.js'
+import { query, queryOne } from '../lib/db.js'
 import type { Movie, Series } from '../media/types.js'
 
 const logger = createChildLogger('top-picks-collection-writer')
@@ -34,6 +34,36 @@ async function getAdminUserId(): Promise<string | null> {
     `SELECT provider_user_id FROM users WHERE is_admin = true LIMIT 1`
   )
   return result?.provider_user_id ?? null
+}
+
+/**
+ * PATCH: Fallback to original Emby items when no Top Picks library exists.
+ * Enables collection/playlist creation on remote servers without STRM/symlinks.
+ */
+async function getOriginalMovieIds(movies: PopularMovie[]): Promise<string[]> {
+  if (movies.length === 0) return []
+  const movieIds = movies.map(m => m.movieId)
+  const result = await query<{ id: number; provider_item_id: string }>(
+    `SELECT id, provider_item_id FROM movies WHERE id = ANY($1)`,
+    [movieIds]
+  )
+  const idMap = new Map(result.rows.map(r => [r.id, r.provider_item_id]))
+  const ids = movies.map(m => idMap.get(m.movieId)).filter(Boolean) as string[]
+  logger.info({ requested: movies.length, matched: ids.length }, 'Matched movies via original Emby items (no-library fallback)')
+  return ids
+}
+
+async function getOriginalSeriesIds(seriesList: PopularSeries[]): Promise<string[]> {
+  if (seriesList.length === 0) return []
+  const seriesIds = seriesList.map(s => s.seriesId)
+  const result = await query<{ id: number; provider_item_id: string }>(
+    `SELECT id, provider_item_id FROM series WHERE id = ANY($1)`,
+    [seriesIds]
+  )
+  const idMap = new Map(result.rows.map(r => [r.id, r.provider_item_id]))
+  const ids = seriesList.map(s => idMap.get(s.seriesId)).filter(Boolean) as string[]
+  logger.info({ requested: seriesList.length, matched: ids.length }, 'Matched series via original Emby items (no-library fallback)')
+  return ids
 }
 
 /**
@@ -196,21 +226,26 @@ export async function writeTopPicksMoviesCollection(
   logger.info({ name: collectionName, count: movies.length }, 'Creating movies collection')
   
   // Get item IDs from the Top Picks library (not original items)
-  const itemIds = await getTopPicksLibraryMovieIds(movies, topPicksLibrary)
-  
+  let itemIds = await getTopPicksLibraryMovieIds(movies, topPicksLibrary)
+
   if (itemIds.length === 0) {
-    logger.warn('No movie items found in Top Picks library, skipping collection')
+    logger.info('No items in Top Picks library, trying original Emby items...')
+    itemIds = await getOriginalMovieIds(movies)
+  }
+
+  if (itemIds.length === 0) {
+    logger.warn('No movie items found anywhere, skipping collection')
     return null
   }
-  
+
   try {
     const result = await provider.createOrUpdateCollection(apiKey, collectionName, itemIds)
-    
-    logger.info({ 
-      collectionId: result.collectionId, 
-      itemCount: itemIds.length 
+
+    logger.info({
+      collectionId: result.collectionId,
+      itemCount: itemIds.length
     }, 'Movies collection created/updated')
-    
+
     return {
       created: true,
       collectionId: result.collectionId,
@@ -249,21 +284,26 @@ export async function writeTopPicksSeriesCollection(
   logger.info({ name: collectionName, count: seriesList.length }, 'Creating series collection')
   
   // Get item IDs from the Top Picks library (not original items)
-  const itemIds = await getTopPicksLibrarySeriesIds(seriesList, topPicksLibrary)
-  
+  let itemIds = await getTopPicksLibrarySeriesIds(seriesList, topPicksLibrary)
+
   if (itemIds.length === 0) {
-    logger.warn('No series items found in Top Picks library, skipping collection')
+    logger.info('No items in Top Picks library, trying original Emby items...')
+    itemIds = await getOriginalSeriesIds(seriesList)
+  }
+
+  if (itemIds.length === 0) {
+    logger.warn('No series items found anywhere, skipping collection')
     return null
   }
-  
+
   try {
     const result = await provider.createOrUpdateCollection(apiKey, collectionName, itemIds)
-    
-    logger.info({ 
-      collectionId: result.collectionId, 
-      itemCount: itemIds.length 
+
+    logger.info({
+      collectionId: result.collectionId,
+      itemCount: itemIds.length
     }, 'Series collection created/updated')
-    
+
     return {
       created: true,
       collectionId: result.collectionId,
@@ -309,21 +349,26 @@ export async function writeTopPicksMoviesPlaylist(
   logger.info({ name: playlistName, count: movies.length }, 'Creating movies playlist')
   
   // Get item IDs from the Top Picks library (not original items)
-  const itemIds = await getTopPicksLibraryMovieIds(movies, topPicksLibrary)
-  
+  let itemIds = await getTopPicksLibraryMovieIds(movies, topPicksLibrary)
+
   if (itemIds.length === 0) {
-    logger.warn('No movie items found in Top Picks library, skipping playlist')
+    logger.info('No items in Top Picks library, trying original Emby items...')
+    itemIds = await getOriginalMovieIds(movies)
+  }
+
+  if (itemIds.length === 0) {
+    logger.warn('No movie items found anywhere, skipping playlist')
     return null
   }
-  
+
   try {
     const result = await provider.createOrUpdatePlaylist(apiKey, adminUserId, playlistName, itemIds)
-    
-    logger.info({ 
-      playlistId: result.playlistId, 
-      itemCount: itemIds.length 
+
+    logger.info({
+      playlistId: result.playlistId,
+      itemCount: itemIds.length
     }, 'Movies playlist created/updated')
-    
+
     return {
       created: true,
       playlistId: result.playlistId,
@@ -369,21 +414,26 @@ export async function writeTopPicksSeriesPlaylist(
   logger.info({ name: playlistName, count: seriesList.length }, 'Creating series playlist')
   
   // Get item IDs from the Top Picks library (not original items)
-  const itemIds = await getTopPicksLibrarySeriesIds(seriesList, topPicksLibrary)
-  
+  let itemIds = await getTopPicksLibrarySeriesIds(seriesList, topPicksLibrary)
+
   if (itemIds.length === 0) {
-    logger.warn('No series items found in Top Picks library, skipping playlist')
+    logger.info('No items in Top Picks library, trying original Emby items...')
+    itemIds = await getOriginalSeriesIds(seriesList)
+  }
+
+  if (itemIds.length === 0) {
+    logger.warn('No series items found anywhere, skipping playlist')
     return null
   }
-  
+
   try {
     const result = await provider.createOrUpdatePlaylist(apiKey, adminUserId, playlistName, itemIds)
-    
-    logger.info({ 
-      playlistId: result.playlistId, 
-      itemCount: itemIds.length 
+
+    logger.info({
+      playlistId: result.playlistId,
+      itemCount: itemIds.length
     }, 'Series playlist created/updated')
-    
+
     return {
       created: true,
       playlistId: result.playlistId,
