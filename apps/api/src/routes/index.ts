@@ -30,6 +30,7 @@ import discoveryRoutes from './discovery/index.js'
 import jellyseerrRoutes from './jellyseerr/index.js'
 import apiKeysRoutes from './apiKeys/index.js'
 import logoRoutes from './logo/index.js'
+import mdblistBrowseRoutes from './mdblist-browse/index.js'
 
 const routes: FastifyPluginAsync = async (fastify) => {
   // Register health check routes
@@ -124,6 +125,9 @@ const routes: FastifyPluginAsync = async (fastify) => {
 
   // Register logo route (for Swagger UI branding)
   await fastify.register(logoRoutes)
+
+  // Register MDBList browse routes (user-facing playlist browser)
+  await fastify.register(mdblistBrowseRoutes)
 }
 
 export default routes

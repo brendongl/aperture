@@ -4,6 +4,7 @@ export { PlaylistDialog } from './PlaylistDialog'
 export { PlaylistViewDialog } from './PlaylistViewDialog'
 export { GraphPlaylistViewDialog } from './GraphPlaylistViewDialog'
 export { EmptyState } from './EmptyState'
+export { BrowsePlaylistsTab } from './BrowsePlaylistsTab'
 
 
 

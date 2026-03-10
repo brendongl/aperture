@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   Box,
   Typography,
@@ -12,12 +13,37 @@ import {
   DialogContentText,
   DialogActions,
   CircularProgress,
+  Tabs,
+  Tab,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
+import PlaylistPlayIcon from '@mui/icons-material/PlaylistPlay'
+import ExploreIcon from '@mui/icons-material/Explore'
 import { usePlaylistsData } from './hooks'
-import { PlaylistCard, GraphPlaylistCard, PlaylistDialog, PlaylistViewDialog, GraphPlaylistViewDialog, EmptyState } from './components'
+import { PlaylistCard, GraphPlaylistCard, PlaylistDialog, PlaylistViewDialog, GraphPlaylistViewDialog, EmptyState, BrowsePlaylistsTab } from './components'
+
+interface TabPanelProps {
+  children?: React.ReactNode
+  index: number
+  value: number
+}
+
+function TabPanel({ children, value, index }: TabPanelProps) {
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`playlists-tabpanel-${index}`}
+      aria-labelledby={`playlists-tab-${index}`}
+    >
+      {value === index && <Box>{children}</Box>}
+    </div>
+  )
+}
 
 export function PlaylistsPage() {
+  const [tabValue, setTabValue] = useState(0)
+
   const {
     // Data
     channels,
@@ -68,6 +94,10 @@ export function PlaylistsPage() {
     handleCloseGraphPlaylistDialog,
   } = usePlaylistsData()
 
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue)
+  }
+
   if (loading) {
     return (
       <Box>
@@ -87,67 +117,101 @@ export function PlaylistsPage() {
 
   return (
     <Box>
-      <Box 
-        display="flex" 
+      <Box
+        display="flex"
         flexDirection={{ xs: 'column', sm: 'row' }}
-        justifyContent="space-between" 
+        justifyContent="space-between"
         alignItems={{ xs: 'stretch', sm: 'center' }}
         gap={{ xs: 2, sm: 0 }}
-        mb={4}
+        mb={2}
       >
         <Box>
           <Typography variant="h4" fontWeight={700} mb={1}>
             Playlists
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Create custom recommendation playlists with genres and example movies
+            Create custom recommendation playlists or browse pre-made curated lists
           </Typography>
         </Box>
-        <Button 
-          variant="contained" 
-          startIcon={<AddIcon />} 
-          onClick={() => handleOpenDialog()}
-          sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }}
-        >
-          New Playlist
-        </Button>
+        {tabValue === 0 && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenDialog()}
+            sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }}
+          >
+            New Playlist
+          </Button>
+        )}
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 4 }}>
-          {error}
-        </Alert>
-      )}
+      {/* Tabs */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs
+          value={tabValue}
+          onChange={handleTabChange}
+          aria-label="playlist tabs"
+        >
+          <Tab
+            icon={<PlaylistPlayIcon />}
+            iconPosition="start"
+            label="My Playlists"
+            id="playlists-tab-0"
+            aria-controls="playlists-tabpanel-0"
+          />
+          <Tab
+            icon={<ExploreIcon />}
+            iconPosition="start"
+            label="Browse Pre-made"
+            id="playlists-tab-1"
+            aria-controls="playlists-tabpanel-1"
+          />
+        </Tabs>
+      </Box>
 
-      {channels.length === 0 && graphPlaylists.length === 0 ? (
-        <EmptyState onCreateClick={() => handleOpenDialog()} />
-      ) : (
-        <Grid container spacing={3}>
-          {/* Channel-based playlists */}
-          {channels.map((channel) => (
-            <Grid item xs={12} sm={6} md={4} key={channel.id}>
-              <PlaylistCard
-                channel={channel}
-                generatingChannelId={generatingChannelId}
-                onEdit={handleOpenDialog}
-                onDelete={handleDelete}
-                onGenerate={handleGeneratePlaylist}
-                onView={handleViewPlaylist}
-              />
-            </Grid>
-          ))}
-          {/* Graph-based playlists */}
-          {graphPlaylists.map((playlist) => (
-            <Grid item xs={12} sm={6} md={4} key={`graph-${playlist.id}`}>
-              <GraphPlaylistCard
-                playlist={playlist}
-                onDelete={handleDeleteGraphPlaylist}
-                onView={handleViewGraphPlaylist}
-              />
-            </Grid>
-          ))}
-        </Grid>
-      )}
+      {/* My Playlists Tab */}
+      <TabPanel value={tabValue} index={0}>
+        {error && (
+          <Alert severity="error" sx={{ mb: 4 }}>
+            {error}
+          </Alert>
+        )}
+
+        {channels.length === 0 && graphPlaylists.length === 0 ? (
+          <EmptyState onCreateClick={() => handleOpenDialog()} />
+        ) : (
+          <Grid container spacing={3}>
+            {/* Channel-based playlists */}
+            {channels.map((channel) => (
+              <Grid item xs={12} sm={6} md={4} key={channel.id}>
+                <PlaylistCard
+                  channel={channel}
+                  generatingChannelId={generatingChannelId}
+                  onEdit={handleOpenDialog}
+                  onDelete={handleDelete}
+                  onGenerate={handleGeneratePlaylist}
+                  onView={handleViewPlaylist}
+                />
+              </Grid>
+            ))}
+            {/* Graph-based playlists */}
+            {graphPlaylists.map((playlist) => (
+              <Grid item xs={12} sm={6} md={4} key={`graph-${playlist.id}`}>
+                <GraphPlaylistCard
+                  playlist={playlist}
+                  onDelete={handleDeleteGraphPlaylist}
+                  onView={handleViewGraphPlaylist}
+                />
+              </Grid>
+            ))}
+          </Grid>
+        )}
+      </TabPanel>
+
+      {/* Browse Pre-made Tab */}
+      <TabPanel value={tabValue} index={1}>
+        <BrowsePlaylistsTab />
+      </TabPanel>
 
       {/* Create/Edit Dialog */}
       <PlaylistDialog
@@ -233,6 +297,3 @@ export function PlaylistsPage() {
     </Box>
   )
 }
-
-
-
