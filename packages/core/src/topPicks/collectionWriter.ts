@@ -47,8 +47,8 @@ async function getOriginalMovieIds(movies: PopularMovie[]): Promise<string[]> {
     `SELECT id, provider_item_id FROM movies WHERE id = ANY($1)`,
     [movieIds]
   )
-  const idMap = new Map(result.rows.map(r => [r.id, r.provider_item_id]))
-  const ids = movies.map(m => idMap.get(m.movieId)).filter(Boolean) as string[]
+  const idMap = new Map(result.rows.map(r => [String(r.id), r.provider_item_id]))
+  const ids = movies.map(m => idMap.get(String(m.movieId))).filter(Boolean) as string[]
   logger.info({ requested: movies.length, matched: ids.length }, 'Matched movies via original Emby items (no-library fallback)')
   return ids
 }
@@ -60,8 +60,8 @@ async function getOriginalSeriesIds(seriesList: PopularSeries[]): Promise<string
     `SELECT id, provider_item_id FROM series WHERE id = ANY($1)`,
     [seriesIds]
   )
-  const idMap = new Map(result.rows.map(r => [r.id, r.provider_item_id]))
-  const ids = seriesList.map(s => idMap.get(s.seriesId)).filter(Boolean) as string[]
+  const idMap = new Map(result.rows.map(r => [String(r.id), r.provider_item_id]))
+  const ids = seriesList.map(s => idMap.get(String(s.seriesId))).filter(Boolean) as string[]
   logger.info({ requested: seriesList.length, matched: ids.length }, 'Matched series via original Emby items (no-library fallback)')
   return ids
 }
